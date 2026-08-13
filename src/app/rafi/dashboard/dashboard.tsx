@@ -340,11 +340,17 @@ function AlbumsEditor({
 
   function upload(i: number, kind: "cover" | "vinyl", filename: string, blob: Blob, objUrl: string) {
     setUploading({ i, kind });
-    const fd = new FormData();
-    fd.append("file", blob, filename);
-    const size = kind === "cover" ? "albumCover" : "albumVinyl";
-    fetch(`/api/upload?size=${size}`, { method: "POST", body: fd })
-      .then((r) => r.json())
+    const prepared: Promise<Blob> =
+      kind === "vinyl"
+        ? import("@imgly/background-removal").then(({ removeBackground }) => removeBackground(blob))
+        : Promise.resolve(blob);
+    prepared
+      .then((b) => {
+        const fd = new FormData();
+        fd.append("file", b, filename);
+        const size = kind === "cover" ? "albumCover" : "albumVinyl";
+        return fetch(`/api/upload?size=${size}`, { method: "POST", body: fd }).then((r) => r.json());
+      })
       .then((res) => {
         if (res.url) {
           const prev = content.albums[i][kind];
@@ -399,7 +405,7 @@ function AlbumsEditor({
                           e.target.value = "";
                         }}
                       />
-                      <span className="dash-img__add">{busy ? "mengunggah…" : `ganti ${kind === "cover" ? "cover" : "DVD"}`}</span>
+                      <span className="dash-img__add">{busy ? (kind === "vinyl" ? "hapus latar…" : "mengunggah…") : `ganti ${kind === "cover" ? "cover" : "DVD"}`}</span>
                     </label>
                   </div>
                 );
