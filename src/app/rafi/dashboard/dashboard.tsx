@@ -4,8 +4,6 @@ import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { ContentData } from "@/lib/content";
 import type { BrandGroup } from "@/components/data";
-import CropModal from "@/components/crop-modal";
-import VideoCropModal from "@/components/video-crop-modal";
 import { logoutAction, saveContentAction } from "../actions";
 function defaultContent(initial: ContentData): ContentData {
   return JSON.parse(JSON.stringify(initial));
@@ -239,14 +237,12 @@ function PostersEditor({
   mutate: (fn: (c: ContentData) => void) => void;
 }) {
   const [uploading, setUploading] = useState<number | null>(null);
-  const [crop, setCrop] = useState<{ i: number; file: File; url: string } | null>(null);
-  const [cropOpen, setCropOpen] = useState(false);
 
-  function upload(i: number, filename: string, blob: Blob, objUrl: string) {
+  function uploadFile(i: number, file: File) {
     setUploading(i);
     const fd = new FormData();
-    fd.append("file", blob, filename);
-    fetch("/api/upload?size=poster", { method: "POST", body: fd })
+    fd.append("file", file, file.name);
+    fetch("/api/upload", { method: "POST", body: fd })
       .then((r) => r.json())
       .then((res) => {
         if (res.url) {
@@ -257,16 +253,7 @@ function PostersEditor({
           mutate((c) => void (c.posters[i].src = res.url));
         }
       })
-      .finally(() => {
-        setUploading(null);
-        setCrop(null);
-        URL.revokeObjectURL(objUrl);
-      });
-  }
-
-  function pick(i: number, file: File) {
-    setCrop({ i, file, url: URL.createObjectURL(file) });
-    setCropOpen(true);
+      .finally(() => setUploading(null));
   }
 
   return (
@@ -276,7 +263,7 @@ function PostersEditor({
           <div className="dash-poster" key={i}>
             <div className="dash-poster__img">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={crop?.i === i ? crop.url : p.src} alt="" />
+              <img src={p.src} alt="" />
             </div>
             <div className="dash-poster__fields">
               <label className="dash-field">
@@ -295,7 +282,7 @@ function PostersEditor({
                   disabled={uploading !== null}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) pick(i, f);
+                    if (f) uploadFile(i, f);
                     e.target.value = "";
                   }}
                 />
@@ -305,24 +292,6 @@ function PostersEditor({
           </div>
         ))}
       </div>
-
-      {crop && cropOpen && (
-        <CropModal
-          src={crop.url}
-          aspect={1139 / 1611}
-          outWidth={1139}
-          onCancel={() => {
-            URL.revokeObjectURL(crop.url);
-            setCrop(null);
-            setCropOpen(false);
-          }}
-          onConfirm={(blob) => {
-            const { i, file, url } = crop;
-            setCropOpen(false);
-            upload(i, file.name, blob, url);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -336,15 +305,12 @@ function AlbumsEditor({
 }) {
   const [uploading, setUploading] = useState<{ i: number; kind: "cover" | "vinyl" } | null>(null);
   const [removing, setRemoving] = useState<number | null>(null);
-  const [crop, setCrop] = useState<{ i: number; kind: "cover" | "vinyl"; file: File; url: string } | null>(null);
-  const [cropOpen, setCropOpen] = useState(false);
 
-  function upload(i: number, kind: "cover" | "vinyl", filename: string, blob: Blob, objUrl: string) {
+  function uploadFile(i: number, kind: "cover" | "vinyl", file: File) {
     setUploading({ i, kind });
     const fd = new FormData();
-    fd.append("file", blob, filename);
-    const size = kind === "cover" ? "albumCover" : "albumVinyl";
-    fetch(`/api/upload?size=${size}`, { method: "POST", body: fd })
+    fd.append("file", file, file.name);
+    fetch("/api/upload", { method: "POST", body: fd })
       .then((r) => r.json())
       .then((res) => {
         if (res.url) {
@@ -355,16 +321,7 @@ function AlbumsEditor({
           mutate((c) => void (c.albums[i][kind] = res.url));
         }
       })
-      .finally(() => {
-        setUploading(null);
-        setCrop(null);
-        URL.revokeObjectURL(objUrl);
-      });
-  }
-
-  function pick(i: number, kind: "cover" | "vinyl", file: File) {
-    setCrop({ i, kind, file, url: URL.createObjectURL(file) });
-    setCropOpen(true);
+      .finally(() => setUploading(null));
   }
 
   function removeBackdrop(i: number) {
@@ -410,11 +367,10 @@ function AlbumsEditor({
             <div className="dash-album__imgs">
               {(["cover", "vinyl"] as const).map((kind) => {
                 const busy = uploading?.i === i && uploading.kind === kind;
-                const isCrop = crop?.i === i && crop.kind === kind;
                 return (
                   <div className="dash-album__img" key={kind}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={isCrop ? crop!.url : a[kind]} alt="" />
+                    <img src={a[kind]} alt="" />
                     <label className="dash-poster__replace">
                       <input
                         type="file"
@@ -423,7 +379,7 @@ function AlbumsEditor({
                         disabled={uploading !== null}
                         onChange={(e) => {
                           const f = e.target.files?.[0];
-                          if (f) pick(i, kind, f);
+                          if (f) uploadFile(i, kind, f);
                           e.target.value = "";
                         }}
                       />
@@ -445,24 +401,6 @@ function AlbumsEditor({
           </div>
         ))}
       </div>
-
-      {crop && cropOpen && (
-        <CropModal
-          src={crop.url}
-          aspect={1}
-          outWidth={1200}
-          onCancel={() => {
-            URL.revokeObjectURL(crop.url);
-            setCrop(null);
-            setCropOpen(false);
-          }}
-          onConfirm={(blob) => {
-            const { i, kind, file, url } = crop;
-            setCropOpen(false);
-            upload(i, kind, file.name, blob, url);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -479,18 +417,14 @@ function BrandGroupEditor({
   onDelete: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const replaceRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [crop, setCrop] = useState<{ file: File; url: string } | null>(null);
-  const [cropOpen, setCropOpen] = useState(false);
-  const [videoCrop, setVideoCrop] = useState<{ file: File; url: string } | null>(null);
-  const [videoCropOpen, setVideoCropOpen] = useState(false);
-  const [editCrop, setEditCrop] = useState<{ i: number; src: string; url: string } | null>(null);
-  const [editCropOpen, setEditCropOpen] = useState(false);
+  const [replaceIdx, setReplaceIdx] = useState<number | null>(null);
 
-  function upload(filename: string, blob: Blob, objUrl?: string) {
+  function uploadFile(file: File) {
     setUploading(true);
     const fd = new FormData();
-    fd.append("file", blob, filename);
+    fd.append("file", file, file.name);
     fetch("/api/upload", { method: "POST", body: fd })
       .then((r) => r.json())
       .then((res) => {
@@ -503,87 +437,56 @@ function BrandGroupEditor({
           );
         }
       })
-      .finally(() => {
-        if (objUrl) URL.revokeObjectURL(objUrl);
-        setUploading(false);
-        setCrop(null);
-        setCropOpen(false);
-      });
+      .finally(() => setUploading(false));
   }
 
-  function uploadVideo(file: File, poster: Blob, objUrl: string) {
+  function replaceFile(ii: number, file: File) {
     setUploading(true);
     const fd = new FormData();
     fd.append("file", file, file.name);
     fetch("/api/upload", { method: "POST", body: fd })
       .then((r) => r.json())
-      .then(async (res) => {
-        if (!res.url) return;
-        const posterFd = new FormData();
-        posterFd.append("file", poster, "cover.jpg");
-        const pr = await fetch("/api/upload?size=brandingCover", {
-          method: "POST",
-          body: posterFd,
-        }).then((r) => r.json());
-        onImages((im) =>
-          im.push({
-            src: res.url,
-            side: im.length % 2 === 0 ? "r" : "l",
-            video: true,
-            poster: pr.url || undefined,
-          })
-        );
-      })
-      .finally(() => {
-        URL.revokeObjectURL(objUrl);
-        setUploading(false);
-        setVideoCrop(null);
-        setVideoCropOpen(false);
-      });
-  }
-
-  function pick(file: File) {
-    if (file.type.startsWith("video/")) {
-      setVideoCrop({ file, url: URL.createObjectURL(file) });
-      setVideoCropOpen(true);
-      return;
-    }
-    setCrop({ file, url: URL.createObjectURL(file) });
-    setCropOpen(true);
-  }
-
-  async function editImage(i: number, src: string) {
-    try {
-      const res = await fetch(src);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setEditCrop({ i, src, url });
-      setEditCropOpen(true);
-    } catch {
-      /* tidak bisa memuat foto */
-    }
-  }
-
-  function replaceImage(i: number, prevSrc: string, blob: Blob, objUrl?: string) {
-    setUploading(true);
-    const fd = new FormData();
-    fd.append("file", blob, "edit.jpg");
-    fetch("/api/upload", { method: "POST", body: fd })
-      .then((r) => r.json())
       .then((res) => {
         if (res.url) {
-          onImages((list) => void (list[i].src = res.url));
-          if (prevSrc.includes("/storage/v1/object/public/portfolio/")) {
-            fetch(`/api/upload?url=${encodeURIComponent(prevSrc)}`, { method: "DELETE" }).catch(() => {});
+          const prev = group.images[ii];
+          onImages((list) => void (list[ii].src = res.url));
+          if (prev?.src?.includes("/storage/v1/object/public/portfolio/")) {
+            fetch(`/api/upload?url=${encodeURIComponent(prev.src)}`, { method: "DELETE" }).catch(() => {});
           }
         }
       })
       .finally(() => {
-        if (objUrl) URL.revokeObjectURL(objUrl);
         setUploading(false);
-        setEditCrop(null);
-        setEditCropOpen(false);
+        setReplaceIdx(null);
       });
+  }
+
+  function uploadVideo(file: File) {
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    fetch("/api/upload", { method: "POST", body: fd })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.url) {
+          onImages((im) =>
+            im.push({
+              src: res.url,
+              side: im.length % 2 === 0 ? "r" : "l",
+              video: true,
+            })
+          );
+        }
+      })
+      .finally(() => setUploading(false));
+  }
+
+  function pick(file: File) {
+    if (file.type.startsWith("video/")) {
+      uploadVideo(file);
+    } else {
+      uploadFile(file);
+    }
   }
 
   return (
@@ -646,11 +549,23 @@ function BrandGroupEditor({
                 />
                 kanan
               </label>
-              {!img.video && (
-                <button className="dash-img__edit" onClick={() => editImage(ii, img.src)} disabled={uploading}>
-                  edit
-                </button>
-              )}
+              <label className="dash-img__edit">
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  hidden
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      setReplaceIdx(ii);
+                      replaceFile(ii, f);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+                {replaceIdx === ii && uploading ? "mengunggah…" : "ganti"}
+              </label>
               <button
                 className="dash-img__del"
                 onClick={() => {
@@ -673,16 +588,6 @@ function BrandGroupEditor({
           </div>
         ))}
 
-        {crop && cropOpen && (
-          <div className="dash-img">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="dash-img__media" src={crop.url} alt="" />
-            <div className="dash-img__meta">
-              <span className="dash-img__uploading">menyesuaikan…</span>
-            </div>
-          </div>
-        )}
-
         <input
           ref={fileRef}
           type="file"
@@ -698,62 +603,6 @@ function BrandGroupEditor({
           {uploading ? "mengunggah…" : "+ tambah gambar"}
         </button>
       </div>
-
-      {crop && cropOpen && (
-        <CropModal
-          src={crop.url}
-          aspect={1878 / 2154}
-          outWidth={1878}
-          onCancel={() => {
-            URL.revokeObjectURL(crop.url);
-            setCrop(null);
-            setCropOpen(false);
-          }}
-          onConfirm={(blob) => {
-            const { file, url } = crop;
-            upload(file.name, blob, url);
-          }}
-        />
-      )}
-
-      {editCrop && editCropOpen && (
-        <CropModal
-          src={editCrop.url}
-          aspect={1878 / 2154}
-          outWidth={1878}
-          onReplace={(file) => {
-            URL.revokeObjectURL(editCrop.url);
-            setEditCrop({ i: editCrop.i, src: editCrop.src, url: URL.createObjectURL(file) });
-          }}
-          onCancel={() => {
-            URL.revokeObjectURL(editCrop.url);
-            setEditCrop(null);
-            setEditCropOpen(false);
-          }}
-          onConfirm={(blob) => {
-            const { i, src, url } = editCrop;
-            setEditCropOpen(false);
-            replaceImage(i, src, blob, url);
-          }}
-        />
-      )}
-
-      {videoCrop && videoCropOpen && (
-        <VideoCropModal
-          src={videoCrop.url}
-          aspect={1878 / 2154}
-          outWidth={1878}
-          onCancel={() => {
-            URL.revokeObjectURL(videoCrop.url);
-            setVideoCrop(null);
-            setVideoCropOpen(false);
-          }}
-          onConfirm={(blob) => {
-            const { file, url } = videoCrop;
-            uploadVideo(file, blob, url);
-          }}
-        />
-      )}
     </section>
   );
 }

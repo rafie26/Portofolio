@@ -19,7 +19,7 @@ export default function CropModal({ src, aspect, outWidth, onConfirm, onCancel, 
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [drag, setDrag] = useState<{ sx: number; sy: number; px: number; py: number } | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [dim, setDim] = useState<{ w: number; h: number } | null>(null);
 
   const fH = fW / aspect;
 
@@ -34,15 +34,14 @@ export default function CropModal({ src, aspect, outWidth, onConfirm, onCancel, 
     return () => ro.disconnect();
   }, []);
 
-  const img = imgRef.current;
-  const base =
-    img && img.naturalWidth ? Math.max(fW / img.naturalWidth, fH / img.naturalHeight) : 1;
-  const Dw = img ? img.naturalWidth * base * scale : 0;
-  const Dh = img ? img.naturalHeight * base * scale : 0;
+  const base = dim ? Math.max(fW / dim.w, fH / dim.h) : 1;
+  const Dw = dim ? dim.w * base * scale : 0;
+  const Dh = dim ? dim.h * base * scale : 0;
   const maxX = Math.max(0, (Dw - fW) / 2);
   const maxY = Math.max(0, (Dh - fH) / 2);
   const tx = Math.max(-maxX, Math.min(maxX, pos.x));
   const ty = Math.max(-maxY, Math.min(maxY, pos.y));
+  const ready = !!dim;
 
   function onPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
@@ -113,12 +112,14 @@ export default function CropModal({ src, aspect, outWidth, onConfirm, onCancel, 
             src={src}
             alt=""
             draggable={false}
-            onLoad={() => setLoaded(true)}
+            onLoad={(e) =>
+              setDim({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })
+            }
             style={{
               width: Dw,
               height: Dh,
               transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px))`,
-              opacity: loaded ? 1 : 0,
+              opacity: ready ? 1 : 0,
             }}
           />
         </div>
@@ -159,7 +160,7 @@ export default function CropModal({ src, aspect, outWidth, onConfirm, onCancel, 
           <button className="crop__btn" onClick={onCancel}>
             batal
           </button>
-          <button className="crop__btn crop__btn--primary" onClick={confirm} disabled={!loaded}>
+          <button className="crop__btn crop__btn--primary" onClick={confirm} disabled={!ready}>
             gunakan
           </button>
         </div>

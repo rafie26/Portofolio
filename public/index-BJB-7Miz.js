@@ -35869,7 +35869,7 @@ function oT() {
                         scrollTrigger: O
                     })
                 }
-                const P = (v ? [6, 8, 7, 5] : [9, 11, 10, 8])[F % 4]
+                const P = (v ? [2, 3, 2, 2] : [3, 4, 3, 2])[F % 4]
                   , B = C.querySelector("img, video");
                 B && Oe.fromTo(B, {
                     yPercent: -P

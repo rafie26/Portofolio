@@ -32,16 +32,21 @@ export async function POST(req: NextRequest) {
     albumVinyl: [1024, 1024],
     brandingCover: [1878, 2154],
   };
-  const [width, height] = dims[size ?? ""] || [1600, 2400];
 
   let name: string;
   let buf: Buffer;
   let contentType: string;
 
   if (isImage) {
-    const resized = await sharp(raw).resize(width, height, { fit: "cover" }).webp({ quality: 85 }).toBuffer();
+    let processed: Buffer;
+    if (size && dims[size]) {
+      const [width, height] = dims[size];
+      processed = await sharp(raw).resize(width, height, { fit: "cover" }).webp({ quality: 85 }).toBuffer();
+    } else {
+      processed = await sharp(raw).webp({ quality: 85 }).toBuffer();
+    }
     name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    buf = resized;
+    buf = processed;
     contentType = "image/webp";
   } else {
     const ext = file.name.split(".").pop() || "mp4";
