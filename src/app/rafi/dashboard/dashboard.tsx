@@ -4,6 +4,7 @@ import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { ContentData } from "@/lib/content";
 import type { BrandGroup } from "@/components/data";
+import CropModal from "@/components/crop-modal";
 import { logoutAction, saveContentAction } from "../actions";
 function defaultContent(initial: ContentData): ContentData {
   return JSON.parse(JSON.stringify(initial));
@@ -420,8 +421,12 @@ function BrandGroupEditor({
   const replaceRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [replaceIdx, setReplaceIdx] = useState<number | null>(null);
+  const [preview, setPreview] = useState<{ file: File; url: string } | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [replacePreview, setReplacePreview] = useState<{ i: number; file: File; url: string } | null>(null);
+  const [replacePreviewOpen, setReplacePreviewOpen] = useState(false);
 
-  function uploadFile(file: File) {
+  function doUpload(file: File) {
     setUploading(true);
     const fd = new FormData();
     fd.append("file", file, file.name);
@@ -485,7 +490,8 @@ function BrandGroupEditor({
     if (file.type.startsWith("video/")) {
       uploadVideo(file);
     } else {
-      uploadFile(file);
+      setPreview({ file, url: URL.createObjectURL(file) });
+      setPreviewOpen(true);
     }
   }
 
@@ -558,8 +564,13 @@ function BrandGroupEditor({
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) {
-                      setReplaceIdx(ii);
-                      replaceFile(ii, f);
+                      if (f.type.startsWith("video/")) {
+                        setReplaceIdx(ii);
+                        replaceFile(ii, f);
+                      } else {
+                        setReplacePreview({ i: ii, file: f, url: URL.createObjectURL(f) });
+                        setReplacePreviewOpen(true);
+                      }
                     }
                     e.target.value = "";
                   }}
@@ -603,6 +614,81 @@ function BrandGroupEditor({
           {uploading ? "mengunggah…" : "+ tambah gambar"}
         </button>
       </div>
+
+      {replacePreview && replacePreviewOpen && (
+        <CropModal
+          src={replacePreview.url}
+          aspect={1878 / 2154}
+          outWidth={1878}
+          onCancel={() => {
+            URL.revokeObjectURL(replacePreview.url);
+            setReplacePreview(null);
+            setReplacePreviewOpen(false);
+          }}
+          onConfirm={(blob) => {
+            const { i, file, url } = replacePreview;
+            setUploading(true);
+            setReplaceIdx(i);
+            const fd = new FormData();
+            fd.append("file", blob, file.name);
+            fetch("/api/upload", { method: "POST", body: fd })
+              .then((r) => r.json())
+              .then((res) => {
+                if (res.url) {
+                  const prev = group.images[i];
+                  onImages((list) => void (list[i].src = res.url));
+                  if (prev?.src?.includes("/storage/v1/object/public/portfolio/")) {
+                    fetch(`/api/upload?url=${encodeURIComponent(prev.src)}`, { method: "DELETE" }).catch(() => {});
+                  }
+                }
+              })
+              .finally(() => {
+                URL.revokeObjectURL(url);
+                setUploading(false);
+                setReplaceIdx(null);
+                setReplacePreview(null);
+                setReplacePreviewOpen(false);
+              });
+          }}
+        />
+      )}
+
+      {preview && previewOpen && (
+        <CropModal
+          src={preview.url}
+          aspect={1878 / 2154}
+          outWidth={1878}
+          onCancel={() => {
+            URL.revokeObjectURL(preview.url);
+            setPreview(null);
+            setPreviewOpen(false);
+          }}
+          onConfirm={(blob) => {
+            const { file, url } = preview;
+            setUploading(true);
+            const fd = new FormData();
+            fd.append("file", blob, file.name);
+            fetch("/api/upload", { method: "POST", body: fd })
+              .then((r) => r.json())
+              .then((res) => {
+                if (res.url) {
+                  onImages((im) =>
+                    im.push({
+                      src: res.url,
+                      side: im.length % 2 === 0 ? "r" : "l",
+                    })
+                  );
+                }
+              })
+              .finally(() => {
+                URL.revokeObjectURL(url);
+                setUploading(false);
+                setPreview(null);
+                setPreviewOpen(false);
+              });
+          }}
+        />
+      )}
     </section>
   );
 }
