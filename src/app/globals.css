@@ -1205,6 +1205,7 @@ main {
 }
 .dash-img__add:hover { border-color: var(--ink); color: var(--ink); }
 .dash-img__add:disabled { opacity: .5; cursor: default; }
+.dash-img__add--bg { width: 100%; aspect-ratio: auto; padding: 10px 0; }
 .dash-img__uploading { color: var(--ink-dim); font-size: 12px; }
 
 .dash__add {

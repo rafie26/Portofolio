@@ -335,22 +335,17 @@ function AlbumsEditor({
   mutate: (fn: (c: ContentData) => void) => void;
 }) {
   const [uploading, setUploading] = useState<{ i: number; kind: "cover" | "vinyl" } | null>(null);
+  const [removing, setRemoving] = useState<number | null>(null);
   const [crop, setCrop] = useState<{ i: number; kind: "cover" | "vinyl"; file: File; url: string } | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
 
   function upload(i: number, kind: "cover" | "vinyl", filename: string, blob: Blob, objUrl: string) {
     setUploading({ i, kind });
-    const prepared: Promise<Blob> =
-      kind === "vinyl"
-        ? import("@imgly/background-removal").then(({ removeBackground }) => removeBackground(blob))
-        : Promise.resolve(blob);
-    prepared
-      .then((b) => {
-        const fd = new FormData();
-        fd.append("file", b, filename);
-        const size = kind === "cover" ? "albumCover" : "albumVinyl";
-        return fetch(`/api/upload?size=${size}`, { method: "POST", body: fd }).then((r) => r.json());
-      })
+    const fd = new FormData();
+    fd.append("file", blob, filename);
+    const size = kind === "cover" ? "albumCover" : "albumVinyl";
+    fetch(`/api/upload?size=${size}`, { method: "POST", body: fd })
+      .then((r) => r.json())
       .then((res) => {
         if (res.url) {
           const prev = content.albums[i][kind];
@@ -370,6 +365,33 @@ function AlbumsEditor({
   function pick(i: number, kind: "cover" | "vinyl", file: File) {
     setCrop({ i, kind, file, url: URL.createObjectURL(file) });
     setCropOpen(true);
+  }
+
+  function removeBackdrop(i: number) {
+    const src = content.albums[i].vinyl;
+    if (removing !== null) return;
+    setRemoving(i);
+    fetch(src)
+      .then((r) => {
+        if (!r.ok) throw new Error("tidak bisa memuat foto");
+        return r.blob();
+      })
+      .then((blob) => import("@imgly/background-removal").then(({ removeBackground }) => removeBackground(blob)))
+      .then((result) => {
+        const fd = new FormData();
+        fd.append("file", result, "vinyl-bg.png");
+        return fetch("/api/upload?size=albumVinyl", { method: "POST", body: fd }).then((r) => r.json());
+      })
+      .then((res) => {
+        if (res.url) {
+          if (src.includes("/storage/v1/object/public/portfolio/")) {
+            fetch(`/api/upload?url=${encodeURIComponent(src)}`, { method: "DELETE" }).catch(() => {});
+          }
+          mutate((c) => void (c.albums[i].vinyl = res.url));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setRemoving(null));
   }
 
   return (
@@ -405,8 +427,17 @@ function AlbumsEditor({
                           e.target.value = "";
                         }}
                       />
-                      <span className="dash-img__add">{busy ? (kind === "vinyl" ? "hapus latar…" : "mengunggah…") : `ganti ${kind === "cover" ? "cover" : "DVD"}`}</span>
+                      <span className="dash-img__add">{busy ? "mengunggah…" : `ganti ${kind === "cover" ? "cover" : "DVD"}`}</span>
                     </label>
+                    {kind === "vinyl" && (
+                      <button
+                        className="dash-img__add dash-img__add--bg"
+                        disabled={removing !== null || !a.vinyl}
+                        onClick={() => removeBackdrop(i)}
+                      >
+                        {removing === i ? "hapus latar…" : "hapus latar"}
+                      </button>
+                    )}
                   </div>
                 );
               })}
