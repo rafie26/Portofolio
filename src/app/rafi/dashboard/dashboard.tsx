@@ -721,6 +721,10 @@ function BrandGroupEditor({
           src={editCrop.url}
           aspect={1878 / 2154}
           outWidth={1878}
+          onReplace={(file) => {
+            URL.revokeObjectURL(editCrop.url);
+            setEditCrop({ i: editCrop.i, src: editCrop.src, url: URL.createObjectURL(file) });
+          }}
           onCancel={() => {
             URL.revokeObjectURL(editCrop.url);
             setEditCrop(null);

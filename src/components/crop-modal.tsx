@@ -8,11 +8,13 @@ type Props = {
   outWidth: number;
   onConfirm: (blob: Blob) => void;
   onCancel: () => void;
+  onReplace?: (file: File) => void;
 };
 
-export default function CropModal({ src, aspect, outWidth, onConfirm, onCancel }: Props) {
+export default function CropModal({ src, aspect, outWidth, onConfirm, onCancel, onReplace }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [fW, setFW] = useState(540);
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -136,6 +138,24 @@ export default function CropModal({ src, aspect, outWidth, onConfirm, onCancel }
           <span className="crop__zoom">{Math.round(scale * 100)}%</span>
         </div>
         <div className="crop__actions">
+          {onReplace && (
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f && onReplace) onReplace(f);
+                  e.target.value = "";
+                }}
+              />
+              <button className="crop__btn" onClick={() => fileRef.current?.click()}>
+                ganti foto
+              </button>
+            </>
+          )}
           <button className="crop__btn" onClick={onCancel}>
             batal
           </button>
